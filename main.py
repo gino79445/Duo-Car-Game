@@ -28,7 +28,7 @@ car_size = (40, 80)
 font = pygame.font.SysFont("arial", 48, bold=True)
 small_font = pygame.font.SysFont("arial", 28)
 clock = pygame.time.Clock()
-car_speed = 5
+car_speed = 3
 ENEMY_SCROLL_SPEED = 2
 SCORE_TO_WIN = 2000
 FINISH_Y = WORLD_HEIGHT - SCORE_TO_WIN * car_speed
@@ -419,11 +419,44 @@ while running:
                     if view.get_rect().colliderect(screen_pos):
                         view.blit(particle.image, screen_pos)
 
-            score_text = small_font.render(f"Distance: {player.score:.1f} m", True, WHITE)
-            speed_text = small_font.render(f"V-Speed: {player.vert_speed_level:.1f}  H-Speed: {player.horiz_speed_value}", True, WHITE)
-            view.blit(score_text, (10, 10))
-            view.blit(speed_text, (10, 40))
+          #  score_text = small_font.render(f"Distance: {player.score:.1f} m", True, WHITE)
+          #  speed_text = small_font.render(f"V-Speed: {player.vert_speed_level:.1f}  H-Speed: {player.horiz_speed_value}", True, WHITE)
+          #  view.blit(score_text, (10, 10))
+          #  view.blit(speed_text, (10, 40))
+          # 在畫面顯示 view 區塊裡（取代文字顯示距離和速度）
 
+            max_distance = SCORE_TO_WIN
+            progress_ratio = min(player.score / max_distance, 1.0)
+            bar_width = 350
+            bar_height = 16
+            filled_width = int(progress_ratio * bar_width)
+
+            pygame.draw.rect(view, (60, 0, 0), (10, 10, bar_width, bar_height))
+            bar_color = (
+                int(255 * (1 - progress_ratio)),
+                int(255 * progress_ratio),
+                80
+            )
+            small_font = pygame.font.SysFont("arial", 15)
+            pygame.draw.rect(view, bar_color, (10, 10, filled_width, bar_height))
+            pygame.draw.rect(view, WHITE, (10, 10, bar_width, bar_height), 2)
+            label = small_font.render("DISTANCE", True, WHITE)
+            view.blit(label, (10, 30))
+
+            speed_ratio = min(player.vert_speed_level / player.max_speed, 1.0)
+            speed_bar_height = 200
+            speed_filled = int(speed_ratio * speed_bar_height)
+            speed_x = view.get_width() - 24  
+            pygame.draw.rect(view, (0, 0, 50), (speed_x, 60, 14, speed_bar_height))
+            speed_color = (
+                0,
+                int(255 * speed_ratio),
+                255 - int(100 * speed_ratio)
+            )
+            pygame.draw.rect(view, speed_color, (speed_x, 60 + (speed_bar_height - speed_filled), 14, speed_filled))
+            pygame.draw.rect(view, WHITE, (speed_x, 60, 14, speed_bar_height), 2)
+            v_label = small_font.render("SPD", True, WHITE)
+            view.blit(v_label, (speed_x - 40, 60 + speed_bar_height // 2 - 10))
             if player.flash_timer > 0:
                 flash_overlay = pygame.Surface((HALF_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
                 flash_overlay.fill((255, 50, 50, 100))
