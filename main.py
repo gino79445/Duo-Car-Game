@@ -79,7 +79,7 @@ class Player(pygame.sprite.Sprite):
 
         self.rect.x += self.horiz_speed_value * self.speed_unit
         self.rect.y -= int(self.vert_speed_level * self.speed_unit)
-        self.score += self.vert_speed_level
+        self.score += self.vert_speed_level * self.speed_unit
 
         self.rect.clamp_ip(pygame.Rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT))
 
