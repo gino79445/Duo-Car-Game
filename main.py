@@ -1,3 +1,6 @@
+# 完整的 Duo Car Challenge 升級版程式碼請分多段提供
+
+# 導入與初始化
 import pygame
 import sys
 import random
@@ -5,7 +8,6 @@ import math
 from input_module import get_player_input
 from output_module import handle_collision_output, handle_victory_output
 from PIL import Image
-
 
 pygame.init()
 pygame.mixer.init()
@@ -36,42 +38,46 @@ FINISH_Y = WORLD_HEIGHT - SCORE_TO_WIN * car_speed
 
 car_img1 = pygame.image.load("car/car1.png").convert_alpha()
 car_img2 = pygame.image.load("car/car2.png").convert_alpha()
-#enemy_img = pygame.image.load("enemy.png").convert_alpha()
-#enemy_frames = [pygame.image.load(f"enemy_frames/frame_{i}.png").convert_alpha() for i in range(5)]
+
 enemy_frames = [
-    pygame.transform.scale(
-        pygame.image.load(f"enemy_frames/frame_{i}.png").convert_alpha(),
-        (50, 50)      )
+    pygame.transform.scale(pygame.image.load(f"enemy_frames/frame_{i}.png").convert_alpha(), (50, 50))
     for i in range(5)
 ]
-#enemy_frames = load_gif_frames("enemy.gif")
-
 
 try:
     collision_sound = pygame.mixer.Sound("collision.wav")
+    pygame.mixer.music.load("start_theme.mp3")
+    pygame.mixer.music.play(-1)
 except:
     collision_sound = None
 
-def load_gif_frames(filename):
-    gif = Image.open(filename)
-    frames = []
-    try:
-        while True:
-            frame = gif.convert('RGBA')
-            pygame_img = pygame.image.fromstring(frame.tobytes(), frame.size, frame.mode)
-            frames.append(pygame.transform.scale(pygame_img, (40, 40)))
-            gif.seek(gif.tell() + 1)
-    except EOFError:
-        pass
-    return frames
+# 星星背景動畫
+stars = [[random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT), random.randint(1, 3)] for _ in range(100)]
+def create_explosion(x, y):
+    group = pygame.sprite.Group()
+    for _ in range(20):
+        p = Particle(x, y)
+        p.velocity = [random.uniform(-3.0, 3.0), random.uniform(-3.0, 3.0)]
+        p.total_lifetime = 40
+        p.lifetime = 40
+        p.image.fill((10, random.randint(50, 100), 0))
+        group.add(p)
+    return group
 
+def update_and_draw_stars(surface):
+    for star in stars:
+        star[1] += star[2]
+        if star[1] > SCREEN_HEIGHT:
+            star[0] = random.randint(0, SCREEN_WIDTH)
+            star[1] = 0
+        pygame.draw.circle(surface, (255, 255, 255), (star[0], star[1]), star[2])
 
 class Particle(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         size = random.randint(8, 12)
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
-        pygame.draw.circle(self.image, (255, random.randint(100, 180), 0), (size // 2, size // 2), size // 2)
+        pygame.draw.circle(self.image, (250, random.randint(100, 180), 0), (size // 2, size // 2), size // 2)
         self.rect = self.image.get_rect(center=(x, y))
         self.velocity = [random.uniform(-1.0, 1.0), random.uniform(2.0, 4.0)]
         self.lifetime = 30
@@ -85,6 +91,41 @@ class Particle(pygame.sprite.Sprite):
         self.image.set_alpha(alpha)
         if self.lifetime <= 0:
             self.kill()
+
+class ConfettiParticle(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.size = random.randint(10, 30)
+        self.image = pygame.Surface((self.size, self.size), pygame.SRCALPHA)
+        color = random.choice([
+            (255, 0, 0), (0, 255, 0), (0, 128, 255),
+            (255, 255, 0), (255, 0, 255), (255, 255, 255)
+        ])
+        center = self.size // 2
+        for radius in range(center, 0, -1):
+            alpha = int(255 * (radius / center))
+            pygame.draw.circle(self.image, color + (alpha,), (center, center), radius)
+
+        self.original_image = self.image.copy()
+        self.rect = self.image.get_rect(center=(x, y))
+        self.velocity = [random.uniform(-1.5, 1.5), random.uniform(0.5, 2.0)]
+        self.gravity = 0.05
+        self.angle = random.uniform(0, 360)
+        self.rotate_speed = random.uniform(-2, 2)
+        self.lifetime = 300  # 持續更久
+
+    def update(self):
+        self.velocity[1] += self.gravity
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        self.angle += self.rotate_speed
+        self.image = pygame.transform.rotate(self.original_image, self.angle)
+        self.rect = self.image.get_rect(center=self.rect.center)
+        self.lifetime -= 1
+        if self.lifetime <= 0:
+            self.kill()
+
+
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, image, keys, start_pos, player_id):
@@ -110,10 +151,8 @@ class Player(pygame.sprite.Sprite):
     def handle_api_input(self, horiz_speed, accelerate, brake, enemies):
         if not self.alive or self.stun_timer > 0:
             return
-
         old_rect = self.rect.copy()
         self.horiz_speed_value = horiz_speed
-
         if accelerate:
             self.vert_speed_level = min(self.max_speed, self.vert_speed_level + 0.2)
         if brake:
@@ -136,6 +175,16 @@ class Player(pygame.sprite.Sprite):
             handle_collision_output(self)
             if collision_sound:
                 collision_sound.play()
+        if pygame.sprite.spritecollideany(self, enemies):
+            self.rect = old_rect
+            self.flash_timer = 200
+            self.stun_timer = 300
+            self.shake_time = 6
+            handle_collision_output(self)
+            if collision_sound:
+                collision_sound.play()
+            self.particles.add(create_explosion(self.rect.centerx, self.rect.centery))
+
 
     def update(self, dt):
         if self.flash_timer > 0:
@@ -148,6 +197,7 @@ class Player(pygame.sprite.Sprite):
         else:
             self.shake_offset = 0
         self.particles.update()
+
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -165,19 +215,13 @@ class Enemy(pygame.sprite.Sprite):
             self.image = self.frames[self.frame_index]
             self.frame_timer = 0
 
-#class Enemy(pygame.sprite.Sprite):
-#    def __init__(self, x, y):
-#        super().__init__()
-#        self.image = pygame.transform.scale(enemy_img, (40, 40))
-#        self.rect = self.image.get_rect(center=(x + 20, y + 20))
-#
-#    def update(self):
-#        self.rect.y += ENEMY_SCROLL_SPEED
 
 def create_players():
     p1 = Player(car_img1, None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100), "Player 1")
     p2 = Player(car_img2, None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100), "Player 2")
     return p1, p2
+
+# 主遊戲執行迴圈與邏輯控制
 start_screen = True
 running = True
 glow_phase = 0
@@ -187,9 +231,7 @@ while running:
 
     if start_screen:
         screen.fill(BLACK)
-        for y in range(0, SCREEN_HEIGHT, 40):
-            color_val = 60 + (pygame.time.get_ticks() // 10 + y) % 120
-            pygame.draw.rect(screen, (color_val, color_val, color_val), (0, y, SCREEN_WIDTH, 20))
+        update_and_draw_stars(screen)
 
         glow_phase += 1
         glow_alpha = int(128 + 127 * (1 + math.sin(glow_phase * 0.05)) / 2)
@@ -219,6 +261,7 @@ while running:
     p1, p2 = create_players()
     players = pygame.sprite.Group(p1, p2)
     enemies = pygame.sprite.Group()
+    confetti = pygame.sprite.Group()
     all_sprites = pygame.sprite.Group(p1, p2)
     game_started = False
     countdown_start = pygame.time.get_ticks()
@@ -228,6 +271,7 @@ while running:
     while not restart_game:
         dt = clock.tick(60)
         screen.fill(BLACK)
+        update_and_draw_stars(screen)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -253,8 +297,6 @@ while running:
             p2.handle_api_input(angle2, acc2, brake2, enemies)
 
             for player in [p1, p2]:
-                if player.rect.y <= FINISH_Y + 1000:
-                    continue
                 if abs(player.rect.y - player.last_spawn_y) >= 600:
                     for _ in range(random.randint(2, 4)):
                         lane_x = random.randint(0, WORLD_WIDTH - car_size[0])
@@ -271,11 +313,15 @@ while running:
                 winner_text = f"{p1.player_id} Wins! Press R to Restart"
                 handle_victory_output(p1)
                 show_winner = True
+                for _ in range(300):
+                    confetti.add(ConfettiParticle(random.randint(0, SCREEN_WIDTH), -10))
+
             elif p2.rect.y <= FINISH_Y:
                 winner_text = f"{p2.player_id} Wins! Press R to Restart"
                 handle_victory_output(p2)
                 show_winner = True
-
+                for _ in range(100):
+                    confetti.add(ConfettiParticle(random.randint(0, SCREEN_WIDTH), -10))
 
         for i, player in enumerate([p1, p2]):
             cam_x = player.rect.centerx - HALF_WIDTH // 2
@@ -317,7 +363,6 @@ while running:
                     if view.get_rect().colliderect(screen_pos):
                         view.blit(particle.image, screen_pos)
 
-
             score_text = small_font.render(f"Distance: {player.score:.1f} m", True, WHITE)
             speed_text = small_font.render(f"V-Speed: {player.vert_speed_level:.1f}  H-Speed: {player.horiz_speed_value}", True, WHITE)
             view.blit(score_text, (10, 10))
@@ -337,10 +382,15 @@ while running:
                                          SCREEN_HEIGHT // 2 - countdown_text.get_height() // 2))
 
         if show_winner:
+            confetti.update()
+            for particle in confetti:
+                screen.blit(particle.image, particle.rect)
             text = font.render(winner_text, True, YELLOW)
             glow = font.render(winner_text, True, RED)
             screen.blit(glow, (SCREEN_WIDTH // 2 - text.get_width() // 2 + 2, SCREEN_HEIGHT // 2 - 28))
             screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2 - 30))
+            confetti.add(ConfettiParticle(random.randint(0, SCREEN_WIDTH), -10))
+
 
         pygame.display.flip()
 
