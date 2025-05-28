@@ -1,6 +1,7 @@
 import pygame
 import sys
 import random
+import math
 from input_module import get_player_input
 from output_module import handle_collision_output, handle_victory_output
 
@@ -36,20 +37,34 @@ try:
 except:
     collision_sound = None
 
-bg_image = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-for y in range(0, SCREEN_HEIGHT, 10):
-    shade = 60 + (y * 2 % 60)
-    pygame.draw.rect(bg_image, (shade, shade, shade), (0, y, SCREEN_WIDTH, 10))
+class Particle(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        size = random.randint(10, 15)
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, (255, random.randint(100, 180), 0), (size // 2, size // 2), size // 2)
+        self.rect = self.image.get_rect(center=(x, y))
+        self.velocity = [random.uniform(-1.5, 1.5), random.uniform(2.0, 4.0)]
+        self.lifetime = 30
+        self.total_lifetime = 30
 
-
+    def update(self):
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        self.lifetime -= 1
+        alpha = max(0, int(255 * (self.lifetime / self.total_lifetime)))
+        self.image.set_alpha(alpha)
+        if self.lifetime <= 0:
+            self.kill()
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, color, keys, start_pos):
+    def __init__(self, color, keys, start_pos, player_id):
         super().__init__()
         self.image = pygame.Surface(car_size)
-        self.base_color = color
-        self.image.fill(self.base_color)
+        self.image.fill(color)
         self.rect = self.image.get_rect(center=start_pos)
+        self.base_color = color
+        self.player_id = player_id
         self.keys = keys
         self.alive = True
         self.score = 0
@@ -62,6 +77,7 @@ class Player(pygame.sprite.Sprite):
         self.max_speed = 4.0
         self.speed_unit = car_speed
         self.last_spawn_y = start_pos[1]
+        self.particles = pygame.sprite.Group()
 
     def handle_api_input(self, horiz_speed, accelerate, brake, enemies):
         if not self.alive or self.stun_timer > 0:
@@ -70,20 +86,19 @@ class Player(pygame.sprite.Sprite):
         old_rect = self.rect.copy()
         self.horiz_speed_value = horiz_speed
 
-        acceleration_step = 0.2
-        deceleration_step = 0.2
         if accelerate:
-            self.vert_speed_level = min(self.max_speed, self.vert_speed_level + acceleration_step)
+            self.vert_speed_level = min(self.max_speed, self.vert_speed_level + 0.2)
         if brake:
-            self.vert_speed_level = max(0.0, self.vert_speed_level - deceleration_step)
+            self.vert_speed_level = max(0.0, self.vert_speed_level - 0.2)
 
         self.rect.x += self.horiz_speed_value * self.speed_unit
         self.rect.y -= int(self.vert_speed_level * self.speed_unit)
-        #self.score += self.vert_speed_level 
-        # 每次 update 時重新計算 score，而不是累加
         self.score = (WORLD_HEIGHT - self.rect.y) / self.speed_unit
-
         self.rect.clamp_ip(pygame.Rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT))
+
+        if accelerate:
+            for _ in range(2):
+                self.particles.add(Particle(self.rect.centerx, self.rect.bottom))
 
         if pygame.sprite.spritecollideany(self, enemies):
             self.rect = old_rect
@@ -104,6 +119,8 @@ class Player(pygame.sprite.Sprite):
             self.shake_offset = random.choice([-3, 3])
         else:
             self.shake_offset = 0
+        self.particles.update()
+
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -115,25 +132,39 @@ class Enemy(pygame.sprite.Sprite):
     def update(self):
         self.rect.y += ENEMY_SCROLL_SPEED
 
-
-
 def create_players():
-    p1 = Player((200, 0, 0), None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100))
-    p2 = Player((0, 0, 200), None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100))
+    p1 = Player((200, 0, 0), None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100), "Player 1")
+    p2 = Player((0, 0, 200), None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100), "Player 2")
     return p1, p2
 
 start_screen = True
 running = True
+glow_phase = 0
 
 while running:
     restart_game = False
 
     if start_screen:
-        screen.blit(bg_image, (0, 0))
-        title = font.render("Duo Car Challenge", True, YELLOW)
+        screen.fill(BLACK)
+        for y in range(0, SCREEN_HEIGHT, 40):
+            color_val = 60 + (pygame.time.get_ticks() // 10 + y) % 120
+            pygame.draw.rect(screen, (color_val, color_val, color_val), (0, y, SCREEN_WIDTH, 20))
+
+        glow_phase += 1
+        glow_alpha = int(128 + 127 * (1 + math.sin(glow_phase * 0.05)) / 2)
+
+        title_surface = font.render("Duo Car Challenge", True, YELLOW)
+        title_glow = font.render("Duo Car Challenge", True, RED)
+
+        glow_layer = pygame.Surface(title_surface.get_size(), pygame.SRCALPHA)
+        glow_layer.blit(title_glow, (0, 0))
+        glow_layer.set_alpha(glow_alpha)
+        screen.blit(glow_layer, (SCREEN_WIDTH//2 - title_surface.get_width()//2, 180 - 4))
+        screen.blit(title_surface, (SCREEN_WIDTH//2 - title_surface.get_width()//2, 180))
+
         msg = small_font.render("Press SPACE to Start", True, WHITE)
-        screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 180))
         screen.blit(msg, (SCREEN_WIDTH//2 - msg.get_width()//2, 260))
+
         pygame.display.flip()
 
         for event in pygame.event.get():
@@ -155,7 +186,7 @@ while running:
 
     while not restart_game:
         dt = clock.tick(60)
-        screen.blit(bg_image, (0, 0))
+        screen.fill(BLACK)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -184,12 +215,11 @@ while running:
                 if player.rect.y <= FINISH_Y + 1000:
                     continue
                 if abs(player.rect.y - player.last_spawn_y) >= 600:
-                    if random.random() < 1.0:
-                        for _ in range(random.randint(2, 4)):
-                            lane_x = random.randint(0, WORLD_WIDTH - car_size[0])
-                            e = Enemy(lane_x, player.rect.y - random.randint(800, 1200))
-                            enemies.add(e)
-                            all_sprites.add(e)
+                    for _ in range(random.randint(2, 4)):
+                        lane_x = random.randint(0, WORLD_WIDTH - car_size[0])
+                        e = Enemy(lane_x, player.rect.y - random.randint(800, 1200))
+                        enemies.add(e)
+                        all_sprites.add(e)
                     player.last_spawn_y = player.rect.y
 
             enemies.update()
@@ -197,13 +227,14 @@ while running:
             p2.update(dt)
 
             if p1.rect.y <= FINISH_Y:
-                winner_text = "Player 1 Wins! Press R to Restart"
+                winner_text = f"{p1.player_id} Wins! Press R to Restart"
                 handle_victory_output(p1)
                 show_winner = True
             elif p2.rect.y <= FINISH_Y:
-                winner_text = "Player 2 Wins! Press R to Restart"
+                winner_text = f"{p2.player_id} Wins! Press R to Restart"
                 handle_victory_output(p2)
                 show_winner = True
+
 
         for i, player in enumerate([p1, p2]):
             cam_x = player.rect.centerx - HALF_WIDTH // 2
@@ -234,6 +265,17 @@ while running:
                 )
                 if view.get_rect().colliderect(screen_pos):
                     view.blit(sprite.image, screen_pos)
+            for other_player in [p1, p2]:
+                for particle in other_player.particles:
+                    screen_pos = pygame.Rect(
+                        particle.rect.x - cam_x + player.shake_offset,
+                        particle.rect.y - cam_y,
+                        particle.rect.width,
+                        particle.rect.height
+                    )
+                    if view.get_rect().colliderect(screen_pos):
+                        view.blit(particle.image, screen_pos)
+
 
             score_text = small_font.render(f"Distance: {player.score:.1f} m", True, WHITE)
             speed_text = small_font.render(f"V-Speed: {player.vert_speed_level:.1f}  H-Speed: {player.horiz_speed_value}", True, WHITE)
