@@ -4,6 +4,8 @@ import random
 import math
 from input_module import get_player_input
 from output_module import handle_collision_output, handle_victory_output
+from PIL import Image
+
 
 pygame.init()
 pygame.mixer.init()
@@ -32,19 +34,46 @@ ENEMY_SCROLL_SPEED = 2
 SCORE_TO_WIN = 2000
 FINISH_Y = WORLD_HEIGHT - SCORE_TO_WIN * car_speed
 
+car_img1 = pygame.image.load("car/car1.png").convert_alpha()
+car_img2 = pygame.image.load("car/car2.png").convert_alpha()
+#enemy_img = pygame.image.load("enemy.png").convert_alpha()
+#enemy_frames = [pygame.image.load(f"enemy_frames/frame_{i}.png").convert_alpha() for i in range(5)]
+enemy_frames = [
+    pygame.transform.scale(
+        pygame.image.load(f"enemy_frames/frame_{i}.png").convert_alpha(),
+        (50, 50)      )
+    for i in range(5)
+]
+#enemy_frames = load_gif_frames("enemy.gif")
+
+
 try:
     collision_sound = pygame.mixer.Sound("collision.wav")
 except:
     collision_sound = None
 
+def load_gif_frames(filename):
+    gif = Image.open(filename)
+    frames = []
+    try:
+        while True:
+            frame = gif.convert('RGBA')
+            pygame_img = pygame.image.fromstring(frame.tobytes(), frame.size, frame.mode)
+            frames.append(pygame.transform.scale(pygame_img, (40, 40)))
+            gif.seek(gif.tell() + 1)
+    except EOFError:
+        pass
+    return frames
+
+
 class Particle(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        size = random.randint(10, 15)
+        size = random.randint(8, 12)
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
         pygame.draw.circle(self.image, (255, random.randint(100, 180), 0), (size // 2, size // 2), size // 2)
         self.rect = self.image.get_rect(center=(x, y))
-        self.velocity = [random.uniform(-1.5, 1.5), random.uniform(2.0, 4.0)]
+        self.velocity = [random.uniform(-1.0, 1.0), random.uniform(2.0, 4.0)]
         self.lifetime = 30
         self.total_lifetime = 30
 
@@ -58,12 +87,11 @@ class Particle(pygame.sprite.Sprite):
             self.kill()
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, color, keys, start_pos, player_id):
+    def __init__(self, image, keys, start_pos, player_id):
         super().__init__()
-        self.image = pygame.Surface(car_size)
-        self.image.fill(color)
+        self.original_image = image
+        self.image = pygame.transform.scale(image, car_size)
         self.rect = self.image.get_rect(center=start_pos)
-        self.base_color = color
         self.player_id = player_id
         self.keys = keys
         self.alive = True
@@ -120,23 +148,36 @@ class Player(pygame.sprite.Sprite):
         else:
             self.shake_offset = 0
         self.particles.update()
-
-
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((40, 40), pygame.SRCALPHA)
-        pygame.draw.circle(self.image, GREEN, (20, 20), 20)
+        self.frames = enemy_frames
+        self.frame_index = 0
+        self.frame_timer = 0
+        self.image = self.frames[self.frame_index]
         self.rect = self.image.get_rect(center=(x + 20, y + 20))
 
     def update(self):
         self.rect.y += ENEMY_SCROLL_SPEED
+        self.frame_timer += 1
+        if self.frame_timer >= 5:
+            self.frame_index = (self.frame_index + 1) % len(self.frames)
+            self.image = self.frames[self.frame_index]
+            self.frame_timer = 0
+
+#class Enemy(pygame.sprite.Sprite):
+#    def __init__(self, x, y):
+#        super().__init__()
+#        self.image = pygame.transform.scale(enemy_img, (40, 40))
+#        self.rect = self.image.get_rect(center=(x + 20, y + 20))
+#
+#    def update(self):
+#        self.rect.y += ENEMY_SCROLL_SPEED
 
 def create_players():
-    p1 = Player((200, 0, 0), None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100), "Player 1")
-    p2 = Player((0, 0, 200), None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100), "Player 2")
+    p1 = Player(car_img1, None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100), "Player 1")
+    p2 = Player(car_img2, None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100), "Player 2")
     return p1, p2
-
 start_screen = True
 running = True
 glow_phase = 0
