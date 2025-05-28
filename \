@@ -79,10 +79,7 @@ class Player(pygame.sprite.Sprite):
 
         self.rect.x += self.horiz_speed_value * self.speed_unit
         self.rect.y -= int(self.vert_speed_level * self.speed_unit)
-        #self.score += self.vert_speed_level 
-        # 每次 update 時重新計算 score，而不是累加
-        self.score = (WORLD_HEIGHT - self.rect.y) / self.speed_unit
-
+        self.score += self.vert_speed_level 
         self.rect.clamp_ip(pygame.Rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT))
 
         if pygame.sprite.spritecollideany(self, enemies):
