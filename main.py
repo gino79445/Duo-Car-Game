@@ -1,6 +1,3 @@
-# 完整的 Duo Car Challenge 升級版程式碼請分多段提供
-
-# 導入與初始化
 import pygame
 import sys
 import random
@@ -51,7 +48,6 @@ try:
 except:
     collision_sound = None
 
-# 星星背景動畫
 stars = [[random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT), random.randint(1, 3)] for _ in range(100)]
 def create_explosion(x, y):
     group = pygame.sprite.Group()
@@ -216,6 +212,33 @@ class Enemy(pygame.sprite.Sprite):
             self.frame_timer = 0
 
 
+def draw_finish_gate(surface, cam_y):
+    gate_y = FINISH_Y - cam_y - 80
+    pole_width = 12
+    flag_height = 70
+    banner_height = 24
+    banner_color1 = (255, 80, 80)
+    banner_color2 = (255, 255, 255)
+    border_color = (255, 215, 0)  # 金邊
+
+    wave_offset = int(4 * math.sin(pygame.time.get_ticks() * 0.005))
+
+    pygame.draw.rect(surface, WHITE, (30, gate_y - flag_height, pole_width, flag_height + 100))
+    pygame.draw.rect(surface, WHITE, (WORLD_WIDTH - 30 - pole_width, gate_y - flag_height, pole_width, flag_height + 100))
+
+    # 飄動的紅白橫幅
+    banner_rect = pygame.Rect(30 + pole_width, gate_y - flag_height + wave_offset, WORLD_WIDTH - 60 - 2*pole_width, banner_height)
+    pygame.draw.rect(surface, banner_color1, banner_rect)
+    pygame.draw.rect(surface, banner_color2, banner_rect.inflate(0, -8).move(0, 4))
+    pygame.draw.rect(surface, border_color, banner_rect, 2)
+
+    # 閃爍燈泡裝飾
+    for x in range(30 + pole_width + 10, WORLD_WIDTH - 30 - pole_width, 20):
+        pygame.draw.circle(surface, random.choice([YELLOW, RED, WHITE]), (x, gate_y - flag_height + 4 + wave_offset), 3)
+
+   # text = small_font.render("FINISH", True, YELLOW)
+   # surface.blit(text, (WORLD_WIDTH // 2 - text.get_width() // 2, gate_y - flag_height + 2 + wave_offset))
+
 def create_players():
     p1 = Player(car_img1, None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100), "Player 1")
     p2 = Player(car_img2, None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100), "Player 2")
@@ -235,9 +258,22 @@ while running:
 
         glow_phase += 1
         glow_alpha = int(128 + 127 * (1 + math.sin(glow_phase * 0.05)) / 2)
+        title_font = pygame.font.SysFont("impact", 88, bold=False)
+        scale = 1 + 0.05 * math.sin(pygame.time.get_ticks() * 0.005)
 
-        title_surface = font.render("Duo Car Challenge", True, YELLOW)
-        title_glow = font.render("Duo Car Challenge", True, RED)
+        title_surface = title_font.render("STM32Racer Duo", True, YELLOW)
+        title_glow = title_font.render("STM32Racer Duo", True, RED)
+
+        title_surface = pygame.transform.rotozoom(title_surface, 0, scale)
+        title_glow = pygame.transform.rotozoom(title_glow, 0, scale)
+
+        screen.blit(title_glow, (SCREEN_WIDTH // 2 - title_glow.get_width() // 2, 180 - 4))
+        screen.blit(title_surface, (SCREEN_WIDTH // 2 - title_surface.get_width() // 2, 180))
+
+
+            # title_surface = font.render("Duo Car Challenge", True, YELLOW)
+            # title_glow = font.render("Duo Car Challenge", True, RED)
+
 
         glow_layer = pygame.Surface(title_surface.get_size(), pygame.SRCALPHA)
         glow_layer.blit(title_glow, (0, 0))
@@ -245,7 +281,15 @@ while running:
         screen.blit(glow_layer, (SCREEN_WIDTH//2 - title_surface.get_width()//2, 180 - 4))
         screen.blit(title_surface, (SCREEN_WIDTH//2 - title_surface.get_width()//2, 180))
 
-        msg = small_font.render("Press SPACE to Start", True, WHITE)
+#msg = small_font.render("Press SPACE to Start", True, WHITE)
+        msg_font = pygame.font.SysFont("arialblack", 36, bold=True)
+        msg = msg_font.render("Press SPACE to Start", True, WHITE)
+        msg_glow = msg_font.render("Press SPACE to Start", True, RED)
+        msg_glow.set_alpha(150)
+
+        screen.blit(msg_glow, (SCREEN_WIDTH // 2 - msg_glow.get_width() // 2 + 2, 262))
+        screen.blit(msg, (SCREEN_WIDTH // 2 - msg.get_width() // 2, 260))
+
         screen.blit(msg, (SCREEN_WIDTH//2 - msg.get_width()//2, 260))
 
         pygame.display.flip()
@@ -309,14 +353,14 @@ while running:
             p1.update(dt)
             p2.update(dt)
 
-            if p1.rect.y <= FINISH_Y:
+            if p1.rect.y <= FINISH_Y-100:
                 winner_text = f"{p1.player_id} Wins! Press R to Restart"
                 handle_victory_output(p1)
                 show_winner = True
                 for _ in range(300):
                     confetti.add(ConfettiParticle(random.randint(0, SCREEN_WIDTH), -10))
 
-            elif p2.rect.y <= FINISH_Y:
+            elif p2.rect.y <= FINISH_Y-100:
                 winner_text = f"{p2.player_id} Wins! Press R to Restart"
                 handle_victory_output(p2)
                 show_winner = True
@@ -341,6 +385,18 @@ while running:
             if FINISH_Y >= cam_y and FINISH_Y <= cam_y + SCREEN_HEIGHT:
                 for x in range(0, HALF_WIDTH, 20):
                     pygame.draw.rect(view, WHITE if x // 20 % 2 == 0 else RED, (x, FINISH_Y - cam_y, 10, 10))
+
+            if FINISH_Y >= cam_y and FINISH_Y <= cam_y + SCREEN_HEIGHT:
+                draw_finish_gate(view, cam_y)
+                for x in range(0, HALF_WIDTH, 20):
+                    pygame.draw.rect(
+                        view,
+                        WHITE if (x // 20 + pygame.time.get_ticks() // 100) % 2 == 0 else RED,
+                        (x, FINISH_Y - cam_y, 10, 10)
+                    )
+                if pygame.time.get_ticks() % 5 == 0:
+                    for _ in range(2):
+                        confetti.add(ConfettiParticle(random.randint(30, WORLD_WIDTH - 30), FINISH_Y - cam_y + random.randint(-10, 10)))
 
             for sprite in all_sprites:
                 world_pos = sprite.rect.copy()
@@ -377,10 +433,29 @@ while running:
 
         pygame.draw.line(screen, WHITE, (HALF_WIDTH, 0), (HALF_WIDTH, SCREEN_HEIGHT), 4)
 
-        if not game_started and countdown_text:
-            screen.blit(countdown_text, (SCREEN_WIDTH // 2 - countdown_text.get_width() // 2,
-                                         SCREEN_HEIGHT // 2 - countdown_text.get_height() // 2))
+        font = pygame.font.SysFont("arial", 48, bold=True)
+        small_font = pygame.font.SysFont("arial", 28)
+        big_countdown_font = pygame.font.SysFont("impact", 200, bold=False)
 
+        if not game_started:
+            elapsed = (pygame.time.get_ticks() - countdown_start) // 1000
+            if elapsed < 3:
+                text = str(3 - elapsed)
+                countdown_text = big_countdown_font.render(text, True, WHITE)
+                glow = big_countdown_font.render(text, True, RED)
+            elif elapsed == 3:
+                text = "GO!"
+                countdown_text = big_countdown_font.render(text, True, YELLOW)
+                glow = big_countdown_font.render(text, True, RED)
+            else:
+                countdown_text = None
+                glow = None
+
+        if not game_started and countdown_text:
+            screen.blit(glow, (SCREEN_WIDTH // 2 - glow.get_width() // 2 + 3,
+                            SCREEN_HEIGHT // 2 - glow.get_height() // 2 + 3))
+            screen.blit(countdown_text, (SCREEN_WIDTH // 2 - countdown_text.get_width() // 2,
+                                        SCREEN_HEIGHT // 2 - countdown_text.get_height() // 2))
         if show_winner:
             confetti.update()
             for particle in confetti:
@@ -393,4 +468,6 @@ while running:
 
 
         pygame.display.flip()
+
+
 
