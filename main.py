@@ -1,6 +1,7 @@
 import pygame
 import sys
 import random
+from input_module import get_player_input
 
 pygame.init()
 pygame.mixer.init()
@@ -39,21 +40,7 @@ for y in range(0, SCREEN_HEIGHT, 10):
     shade = 60 + (y * 2 % 60)
     pygame.draw.rect(bg_image, (shade, shade, shade), (0, y, SCREEN_WIDTH, 10))
 
-def angle_to_horiz_speed(angle):
-    normalized_angle = angle % 360
-    if normalized_angle > 180:
-        normalized_angle -= 360
 
-    if normalized_angle < -108:
-        return -2
-    elif normalized_angle < -36:
-        return -1
-    elif normalized_angle < 36:
-        return 0
-    elif normalized_angle < 108:
-        return 1
-    else:
-        return 2
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, color, keys, start_pos):
@@ -73,57 +60,14 @@ class Player(pygame.sprite.Sprite):
         self.horiz_speed_value = 0
         self.max_speed = 4.0
         self.speed_unit = car_speed
-        self.last_key_states = {
-            k: False for k in [self.keys["up"], self.keys["down"]] + list(self.keys["horiz_keys"].keys())
-        }
         self.last_spawn_y = start_pos[1]
 
-    def handle_input(self, keys, enemies):
+    def handle_api_input(self, horiz_speed, accelerate, brake, enemies):
         if not self.alive or self.stun_timer > 0:
             return
 
         old_rect = self.rect.copy()
-        self.horiz_speed_value = 0
-        for key, value in self.keys["horiz_keys"].items():
-            if keys[key]:
-                self.horiz_speed_value = value
-                break
-
-        acceleration_step = 0.2
-        deceleration_step = 0.2
-
-        if keys[self.keys["up"]] and not self.last_key_states[self.keys["up"]]:
-            self.vert_speed_level = min(self.max_speed, self.vert_speed_level + acceleration_step)
-        if keys[self.keys["down"]] and not self.last_key_states[self.keys["down"]]:
-            self.vert_speed_level = max(0.0, self.vert_speed_level - deceleration_step)
-
-        self.rect.x += self.horiz_speed_value * self.speed_unit
-        self.rect.y -= int(self.vert_speed_level * self.speed_unit)
-        self.score += self.vert_speed_level
-
-        self.rect.clamp_ip(pygame.Rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT))
-
-        if pygame.sprite.spritecollideany(self, enemies):
-            self.rect = old_rect
-            self.flash_timer = 200
-            self.stun_timer = 300
-            self.shake_time = 6
-            if collision_sound:
-                collision_sound.play()
-
-        for k in self.keys.values():
-            if isinstance(k, dict):
-                for subk in k:
-                    self.last_key_states[subk] = keys[subk]
-            else:
-                self.last_key_states[k] = keys[k]
-
-    def handle_api_input(self, angle, accelerate, brake, enemies):
-        if not self.alive or self.stun_timer > 0:
-            return
-
-        old_rect = self.rect.copy()
-        self.horiz_speed_value = angle_to_horiz_speed(angle)
+        self.horiz_speed_value = horiz_speed
 
         acceleration_step = 0.2
         deceleration_step = 0.2
@@ -167,33 +111,11 @@ class Enemy(pygame.sprite.Sprite):
     def update(self):
         self.rect.y += ENEMY_SCROLL_SPEED
 
-p1_keys = {
-    "up": pygame.K_w,
-    "down": pygame.K_s,
-    "horiz_keys": {
-        pygame.K_z: -2,
-        pygame.K_x: -1,
-        pygame.K_c: 0,
-        pygame.K_v: 1,
-        pygame.K_b: 2
-    }
-}
 
-p2_keys = {
-    "up": pygame.K_UP,
-    "down": pygame.K_DOWN,
-    "horiz_keys": {
-        pygame.K_j: -2,
-        pygame.K_k: -1,
-        pygame.K_l: 0,
-        pygame.K_SEMICOLON: 1,
-        pygame.K_QUOTE: 2
-    }
-}
 
 def create_players():
-    p1 = Player((200, 0, 0), p1_keys, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100))
-    p2 = Player((0, 0, 200), p2_keys, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100))
+    p1 = Player((200, 0, 0), None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100))
+    p2 = Player((0, 0, 200), None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100))
     return p1, p2
 
 start_screen = True
@@ -230,7 +152,6 @@ while running:
     while not restart_game:
         dt = clock.tick(60)
         screen.blit(bg_image, (0, 0))
-        keys = pygame.key.get_pressed()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -250,8 +171,10 @@ while running:
                 countdown_text = None
                 game_started = True
         elif not show_winner:
-            p1.handle_input(keys, enemies)  # Replace with p1.handle_api_input(angle, accel, brake, enemies) if needed
-            p2.handle_input(keys, enemies)
+            angle1, acc1, brake1 = get_player_input(1)
+            angle2, acc2, brake2 = get_player_input(2)
+            p1.handle_api_input(angle1, acc1, brake1, enemies)
+            p2.handle_api_input(angle2, acc2, brake2, enemies)
 
             for player in [p1, p2]:
                 if player.rect.y <= FINISH_Y + 1000:
