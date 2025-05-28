@@ -2,6 +2,7 @@ import pygame
 import sys
 import random
 from input_module import get_player_input
+from output_module import handle_collision_output, handle_victory_output
 
 pygame.init()
 pygame.mixer.init()
@@ -87,6 +88,7 @@ class Player(pygame.sprite.Sprite):
             self.flash_timer = 200
             self.stun_timer = 300
             self.shake_time = 6
+            handle_collision_output(self)
             if collision_sound:
                 collision_sound.play()
 
@@ -194,9 +196,11 @@ while running:
 
             if p1.rect.y <= FINISH_Y:
                 winner_text = "Player 1 Wins! Press R to Restart"
+                handle_victory_output(p1)
                 show_winner = True
             elif p2.rect.y <= FINISH_Y:
                 winner_text = "Player 2 Wins! Press R to Restart"
+                handle_victory_output(p2)
                 show_winner = True
 
         for i, player in enumerate([p1, p2]):
