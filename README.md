@@ -1,63 +1,91 @@
 # 🚗 Duo Car Challenge
 
-A two-player racing game built with Python and Pygame. Each player controls a car and races through a vertically scrolling track filled with enemies. The first to reach the finish line wins!
+**Duo Car Challenge** is a two-player vertical racing game built with **Python** and **Pygame**. Each player controls a car to race through a scrolling track filled with obstacles. The first player to reach 2000 meters wins!
 
-## 🕹 Gameplay
+---
 
-- Supports 2 players on the same keyboard.
-- Each player controls their car's speed and direction.
-- Colliding with enemies causes temporary flashing and a stun effect.
-- The first player to reach 2000 meters wins the game.
+## 🧩 Modular Architecture (STM32-Ready)
 
-## ⌨️ Controls
+The game uses a modular design, making it easy to customize and integrate with external hardware such as **STM32** microcontrollers.
+
+### 🔌 `input_module.py`
+- Handles all player input (default: keyboard)
+- ✅ Can be extended to receive data from **STM32**, **Bluetooth modules**, or **serial sensors**
+- Example: Read angle or throttle values via UART and convert to in-game movement
+
+### 📤 `output_module.py`
+- Handles game output events (e.g., collisions, victory)
+- ✅ Easily connected to **STM32** or other hardware to trigger feedback:
+  - Vibration motors
+  - LEDs
+  - Buzzers
+- Example: Send a UART message like `"P1:HIT\n"` when Player 1 collides
+
+---
+
+## 🕹 Gameplay Overview
+
+- 2 players control cars on a vertically scrolling track
+- Dodge enemies while accelerating upward
+- Collisions cause temporary stun and screen shake
+- First to reach 2000 meters wins
+
+---
+
+## ⌨️ Default Controls
 
 ### Player 1 (Red Car)
 
-| Action     | Keys         |
-|------------|--------------|
-| Accelerate | `W`          |
-| Brake      | `S`          |
-| Move Left  | `Z`, `X`     |
-| Neutral    | `C`          |
-| Move Right | `V`, `B`     |
+| Action       | Key     |
+|--------------|---------|
+| Accelerate   | `W`     |
+| Brake        | `E`     |
+| Hard Left    | `A` (-180°) |
+| Left         | `S` (-90°)  |
+| Straight     | `D` (0°)    |
+| Right        | `F` (90°)   |
+| Hard Right   | `G` (180°)  |
 
 ### Player 2 (Blue Car)
 
-| Action     | Keys             |
-|------------|------------------|
-| Accelerate | `↑ Arrow`        |
-| Brake      | `↓ Arrow`        |
-| Move Left  | `J`, `K`         |
-| Neutral    | `L`              |
-| Move Right | `;`, `'` (quote) |
+| Action       | Key              |
+|--------------|------------------|
+| Accelerate   | `↑` Arrow key    |
+| Brake        | `↓` Arrow key    |
+| Hard Left    | `J` (-180°)      |
+| Left         | `K` (-90°)       |
+| Straight     | `L` (0°)         |
+| Right        | `;` (90°)        |
+| Hard Right   | `'` (180°)       |
 
-## ⚙️ 5-Level Vertical Speed System
+> Each direction key maps to an **angle** (-180° to 180°), which is converted to horizontal speed (`-2` to `2`) inside `input_module.py`.
 
-Each player's vertical speed is controlled through **five levels**, from 0 to 4:
+---
 
-- Pressing the **accelerate key** (`W` for Player 1, `↑` for Player 2) increases vertical speed by 1 level (up to level 4).
-- Pressing the **brake key** (`S` or `↓`) decreases speed by 1 level (down to level 0).
-- Higher speed levels move the car faster upward and accumulate distance points more quickly.
+## ⚙️ Speed System
 
-### 💡 Strategy Tips
+- **Vertical Speed**:
+  - 5 levels (0 to 4)
+  - Acceleration increases speed level
+  - Braking decreases it
+  - Faster = higher movement and score gain
 
-- Start slow to get used to steering and avoiding enemies.
-- Use higher speed levels to gain distance and race ahead.
-- Slow down near dense enemy zones or close to the finish line for better control.
+- **Horizontal Speed**:
+  - Determined by angle input
+  - Converted internally to a speed from `-2` to `2`
 
-This system adds depth to the gameplay, requiring players to balance speed and safety.
+---
 
-## 🎮 How to Play
+## 🧪 Modular Output Events
 
-- Launch the game and press `SPACE` to start.
-- After the game ends, press `R` to restart.
+Output events are handled in `output_module.py`, making it easy to plug into other systems:
 
-## 📦 Requirements
+| Event     | Function                     | Example Use Case                        |
+|-----------|------------------------------|-----------------------------------------|
+| Collision | `handle_collision_output()`  | Send UART signal to STM32 or activate motor |
+| Victory   | `handle_victory_output()`    | Flash LED, trigger sound, send score    |
 
-- Python 3.x
-- Pygame library
+These functions can be extended to log data, transmit over serial, or interface with external hardware.
 
-Install Pygame via pip:
+---
 
-```bash
-pip install pygame
