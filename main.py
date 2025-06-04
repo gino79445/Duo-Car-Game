@@ -2,14 +2,18 @@ import pygame
 import sys
 import random
 import math
-from input_module import get_player_input
 from output_module import handle_collision_output, handle_victory_output
 from PIL import Image
+import socket
+import threading
+import struct
+import os
+
 
 pygame.init()
 pygame.mixer.init()
 
-SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
+SCREEN_WIDTH, SCREEN_HEIGHT = 800, 1000
 HALF_WIDTH = SCREEN_WIDTH // 2
 WORLD_WIDTH = 400
 WORLD_HEIGHT = 50000
@@ -30,8 +34,12 @@ small_font = pygame.font.SysFont("arial", 28)
 clock = pygame.time.Clock()
 car_speed = 3
 ENEMY_SCROLL_SPEED = 2
-SCORE_TO_WIN = 2000
+SCORE_TO_WIN = 10000
 FINISH_Y = WORLD_HEIGHT - SCORE_TO_WIN * car_speed
+
+
+RECEIVE_X = {1: 0.0, 2:0. }
+RECEIVE_Y = {1: 0.0, 2:0. }
 
 car_img1 = pygame.image.load("car/car1.png").convert_alpha()
 car_img2 = pygame.image.load("car/car2.png").convert_alpha()
@@ -67,6 +75,76 @@ def update_and_draw_stars(surface):
             star[0] = random.randint(0, SCREEN_WIDTH)
             star[1] = 0
         pygame.draw.circle(surface, (255, 255, 255), (star[0], star[1]), star[2])
+
+def angle_to_horiz_speed(angle, levels=5):
+    """
+    將 angle（-180 ~ 180）分為 levels 段，對應速度值（例如 -2 ~ 2）
+    """
+    if angle > 800:
+        angle = 800
+    if angle < -800:
+        angle = -800
+
+    return (angle+800)/1600 * 6 - 3
+
+def angle_to_verticle_speed(angle, levels=5):
+    """
+    將 angle（-180 ~ 180）分為 levels 段，對應速度值（例如 -2 ~ 2）
+    """
+    if angle > 600:
+        angle = 600
+    if angle < 0:
+        angle = 0
+
+    return angle/600 * 4;
+
+PLAYER_KEY_CONFIGS = {
+    1: {
+        "angle_keys": {
+            pygame.K_a: -180,
+            pygame.K_s: -90,
+            pygame.K_d: 0,
+            pygame.K_f: 90,
+            pygame.K_g: 180,
+        },
+        "accelerate": pygame.K_w,
+        "brake": pygame.K_e,
+    },
+    2: {
+        "angle_keys": {
+            pygame.K_j: -180,
+            pygame.K_k: -90,
+            pygame.K_l: 0,
+            pygame.K_SEMICOLON: 90,
+            pygame.K_QUOTE: 180,
+        },
+        "accelerate": pygame.K_UP,
+        "brake": pygame.K_DOWN,
+    }
+}
+
+def get_player_input(player_id):
+    keys = pygame.key.get_pressed()
+    config = PLAYER_KEY_CONFIGS.get(player_id)
+    if not config:
+        return 0, 0, False
+
+    angle = 0
+    for key, value in config["angle_keys"].items():
+        if keys[key]:
+            angle = value
+            break
+
+    angle = RECEIVE_X[player_id]
+    horiz_speed = angle_to_horiz_speed(angle, levels=5)
+
+    angle = RECEIVE_Y[player_id]
+    accelerate = angle_to_verticle_speed(angle, levels=5)
+
+    brake = keys[config["brake"]]
+
+    return horiz_speed, accelerate, brake
+
 
 class Particle(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -149,10 +227,14 @@ class Player(pygame.sprite.Sprite):
             return
         old_rect = self.rect.copy()
         self.horiz_speed_value = horiz_speed
+        self.vert_speed_level = accelerate
+
+        '''
         if accelerate:
             self.vert_speed_level = min(self.max_speed, self.vert_speed_level + 0.2)
         if brake:
             self.vert_speed_level = max(0.0, self.vert_speed_level - 0.2)
+        '''
 
         self.rect.x += self.horiz_speed_value * self.speed_unit
         self.rect.y -= int(self.vert_speed_level * self.speed_unit)
@@ -240,9 +322,46 @@ def draw_finish_gate(surface, cam_y):
    # surface.blit(text, (WORLD_WIDTH // 2 - text.get_width() // 2, gate_y - flag_height + 2 + wave_offset))
 
 def create_players():
-    p1 = Player(car_img1, None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 100), "Player 1")
-    p2 = Player(car_img2, None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 100), "Player 2")
+    p1 = Player(car_img1, None, (WORLD_WIDTH // 2 - 60, WORLD_HEIGHT - 50), "Player 1")
+    p2 = Player(car_img2, None, (WORLD_WIDTH // 2 + 60, WORLD_HEIGHT - 50), "Player 2")
     return p1, p2
+
+def receive_x(socket, counter):
+    while True:
+        try:
+            data = socket.recv(4)
+            values = struct.unpack('<hh', data)
+            RECEIVE_X[counter%2+1] = values[0]
+            RECEIVE_Y[counter%2+1] = values[1]
+        except:
+            socket.close()
+            print("closed server")
+            break
+# setup socket
+HOST = os.environ['STM32_SERVER_HOST']
+PORT = int(os.environ['STM32_SERVER_PORT'])
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind((HOST, PORT))
+sock.listen(5)
+print(f"Server listned on {HOST}:{PORT}")
+
+def start_listen(sock):
+    counter = 0
+    while True:
+        (client_sock, address) = sock.accept()
+        print(f"{address} connected.")
+
+        counter += 1
+        t = threading.Thread(target=receive_x, args=(client_sock, counter))
+        t.daemon = True
+        t.start()
+
+sock_t = threading.Thread(target=start_listen, args=(sock, ))
+sock_t.daemon = True
+sock_t.start()
+
 
 # 主遊戲執行迴圈與邏輯控制
 start_screen = True
@@ -341,7 +460,7 @@ while running:
             p2.handle_api_input(angle2, acc2, brake2, enemies)
 
             for player in [p1, p2]:
-                if abs(player.rect.y - player.last_spawn_y) >= 600:
+                if abs(player.rect.y - player.last_spawn_y) >= 1000:
                     for _ in range(random.randint(2, 4)):
                         lane_x = random.randint(0, WORLD_WIDTH - car_size[0])
                         e = Enemy(lane_x, player.rect.y - random.randint(800, 1200))
@@ -369,7 +488,7 @@ while running:
 
         for i, player in enumerate([p1, p2]):
             cam_x = player.rect.centerx - HALF_WIDTH // 2
-            cam_y = player.rect.centery - SCREEN_HEIGHT // 2
+            cam_y = player.rect.centery - SCREEN_HEIGHT // 3 * 2
             cam_x = max(0, min(cam_x, WORLD_WIDTH - HALF_WIDTH))
             cam_y = max(0, min(cam_y, WORLD_HEIGHT - SCREEN_HEIGHT))
 
