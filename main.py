@@ -13,7 +13,7 @@ import os
 pygame.init()
 pygame.mixer.init()
 
-SCREEN_WIDTH, SCREEN_HEIGHT = 800, 1000
+SCREEN_WIDTH, SCREEN_HEIGHT = 800, 800
 HALF_WIDTH = SCREEN_WIDTH // 2
 WORLD_WIDTH = 400
 WORLD_HEIGHT = 50000
@@ -459,14 +459,16 @@ while running:
             p1.handle_api_input(angle1, acc1, brake1, enemies)
             p2.handle_api_input(angle2, acc2, brake2, enemies)
 
-            for player in [p1, p2]:
-                if abs(player.rect.y - player.last_spawn_y) >= 1000:
-                    for _ in range(random.randint(2, 4)):
-                        lane_x = random.randint(0, WORLD_WIDTH - car_size[0])
-                        e = Enemy(lane_x, player.rect.y - random.randint(800, 1200))
-                        enemies.add(e)
-                        all_sprites.add(e)
-                    player.last_spawn_y = player.rect.y
+            leader = p1 if p1.score >= p2.score else p2
+
+            # for player in [p1, p2]:
+            if abs(leader.rect.y - leader.last_spawn_y) >= 1000:
+                for _ in range(random.randint(2, 4)):
+                    lane_x = random.randint(0, WORLD_WIDTH - car_size[0])
+                    e = Enemy(lane_x, leader.rect.y - random.randint(800, 1200))
+                    enemies.add(e)
+                    all_sprites.add(e)
+                leader.last_spawn_y = leader.rect.y
 
             enemies.update()
             p1.update(dt)
